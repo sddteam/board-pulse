@@ -1,0 +1,1427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Board Pulse</title>
+<style>
+[hidden] { display: none !important; }
+body { margin: 0; }
+:root { color-scheme: light; }
+/* Layout: a narrow rail on the left (load the export, pick a project), the metrics column on the right.
+   One column on phones. Neutral plane and surface, blue as the accent, orange and aqua as the other
+   two series. System sans for everything, mono for ids and dates. */
+:root {
+  --plane: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --ring: rgba(11, 11, 11, 0.10);
+  --hover: rgba(11, 11, 11, 0.05);
+  --accent: #2a78d6;
+  --accent-wash: rgba(42, 120, 214, 0.10);
+  --btn: #2a78d6;
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --good-text: #006300;
+  --bad-text: #d03b3b;
+  --warn: #fab219;
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --plane: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #f0efec;
+    --ink2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --ring: rgba(255, 255, 255, 0.10);
+    --hover: rgba(255, 255, 255, 0.06);
+    --accent: #3987e5;
+    --accent-wash: rgba(57, 135, 229, 0.16);
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    --good-text: #0ca30c;
+    --bad-text: #e66767;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --plane: #0d0d0d;
+  --surface: #1a1a19;
+  --ink: #f0efec;
+  --ink2: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --ring: rgba(255, 255, 255, 0.10);
+  --hover: rgba(255, 255, 255, 0.06);
+  --accent: #3987e5;
+  --accent-wash: rgba(57, 135, 229, 0.16);
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  --good-text: #0ca30c;
+  --bad-text: #e66767;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--plane); color: var(--ink); font: 14px/1.5 var(--font); }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+h1 { font-size: 22px; line-height: 1.2; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+.top { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
+.sub { margin: 4px 0 0; color: var(--ink2); }
+.srcmeta { font: 12px/1.4 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.banner { background: var(--accent-wash); border: 1px solid var(--ring); border-radius: 6px; padding: 8px 12px; margin-bottom: 16px; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.rail { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.main { min-width: 0; }
+.lbl { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink2); font-weight: 600; margin: 0 0 8px; }
+
+.drop { border: 1.5px dashed var(--axis); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; background: var(--surface); }
+.drop.over { border-color: var(--accent); background: var(--accent-wash); }
+.hint { color: var(--muted); font-size: 12.5px; }
+.err { margin: 0; color: var(--bad-text); font-size: 13px; overflow-wrap: anywhere; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.btn { display: inline-block; background: var(--btn); color: #fff; border: 0; border-radius: 6px; padding: 7px 12px; font: 600 13px var(--font); cursor: pointer; }
+.vh:focus-visible + .btn { outline: 2px solid var(--ink); outline-offset: 2px; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--axis); font-weight: 500; padding: 4px 9px; font-size: 12px; }
+
+details > summary { cursor: pointer; color: var(--ink2); font-weight: 600; }
+.step { margin: 10px 0 0; color: var(--ink2); font-size: 13px; }
+.step b { color: var(--ink); }
+.cmd { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0 0; }
+pre.code { flex: 1; min-width: 0; margin: 0; padding: 8px 10px; background: var(--surface); border: 1px solid var(--ring); border-radius: 6px; overflow: auto; font: 12px/1.5 var(--mono); white-space: pre; color: var(--ink); }
+.shell { font: 11px var(--mono); color: var(--muted); margin-top: 8px; }
+
+input[type="search"], input[type="text"], input[type="password"], select { font: 13px var(--font); color: var(--ink); background: var(--surface); border: 1px solid var(--axis); border-radius: 6px; padding: 6px 8px; min-width: 0; width: 100%; }
+.plist { display: flex; flex-direction: column; gap: 2px; max-height: min(46vh, 420px); overflow: auto; margin: 8px 0 0; padding: 0; list-style: none; }
+.proj { display: block; width: 100%; background: none; border: 0; text-align: left; font: inherit; color: inherit; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
+.proj:hover { background: var(--hover); }
+.proj[aria-current="true"] { background: var(--accent-wash); }
+.proj b { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.proj small { display: block; color: var(--muted); font: 12px var(--mono); }
+.empty { color: var(--muted); font-size: 13px; margin: 8px 0; }
+
+.form { display: flex; flex-direction: column; gap: 10px; }
+.placeholder { margin: 24px 0; padding: 18px; border: 1px dashed var(--axis); border-radius: 8px; color: var(--ink2); overflow-wrap: anywhere; }
+.placeholder.error { color: var(--bad-text); border-color: var(--bad-text); }
+.btn:disabled { opacity: 0.6; cursor: default; }
+.chk { display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: var(--ink2); margin: 10px 0 4px; }
+.sortbtn { background: none; border: 0; padding: 0; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; white-space: nowrap; }
+.sortbtn:hover { color: var(--ink); }
+.linkbtn { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); cursor: pointer; text-align: left; }
+.linkbtn:hover { text-decoration: underline; }
+.tall { max-height: 480px; overflow: auto; }
+.tall th { position: sticky; top: 0; background: var(--surface); }
+.sub2 { color: var(--muted); font-size: 12px; }
+.phead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-bottom: 10px; }
+.phead h2 { margin: 0; font-size: 18px; font-weight: 650; overflow-wrap: anywhere; }
+.phead .badge { font: 11px var(--mono); color: var(--ink2); border: 1px solid var(--axis); border-radius: 4px; padding: 1px 6px; }
+.filters { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; margin-bottom: 10px; }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--axis); border-radius: 6px; overflow: hidden; }
+.seg button { background: transparent; color: var(--ink2); border: 0; border-right: 1px solid var(--axis); padding: 6px 12px; font: 13px var(--font); cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button:hover { background: var(--hover); }
+.seg button[aria-pressed="true"] { background: var(--accent-wash); color: var(--ink); font-weight: 600; }
+.map { margin: 0 0 4px; }
+.map summary span { font-weight: 400; color: var(--muted); font-size: 12.5px; margin-left: 6px; }
+.mapgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 16px; margin-top: 10px; }
+label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ink2); }
+.meaning { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px 16px; margin-top: 8px; }
+.mrow { display: flex; gap: 8px; align-items: center; }
+.mrow span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.mrow select { width: auto; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin: 12px 0; }
+.tile { background: var(--surface); border: 1px solid var(--ring); border-radius: 8px; padding: 12px 14px; min-width: 0; }
+.tl { color: var(--ink2); font-size: 12.5px; }
+.tv { font-size: 28px; font-weight: 600; line-height: 1.15; margin: 2px 0; letter-spacing: -0.01em; }
+.tv small { font-size: 13px; color: var(--ink2); font-weight: 500; margin-left: 5px; letter-spacing: 0; }
+.ts { color: var(--muted); font-size: 12px; }
+.dl { font-size: 12px; font-weight: 600; }
+.up { color: var(--good-text); }
+.down { color: var(--bad-text); }
+
+.charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1100px) { .charts { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--surface); border: 1px solid var(--ring); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+.card.wide { grid-column: 1 / -1; }
+.card h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.csub { margin: 2px 0 8px; color: var(--muted); font-size: 12.5px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 6px; font-size: 12px; color: var(--ink2); }
+.legend:empty { display: none; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.card details.tbl { margin-top: 10px; font-size: 12.5px; }
+svg.chart { display: block; max-width: 100%; height: auto; overflow: visible; }
+.gl { stroke: var(--grid); stroke-width: 1; }
+.ax { stroke: var(--axis); stroke-width: 1; }
+.tick { fill: var(--muted); font: 11px var(--font); }
+.val { fill: var(--ink); font: 600 11px var(--font); }
+.mark.s1 { fill: var(--s1); }
+.mark.plan { fill: var(--muted); }
+.lift { filter: brightness(1.15); }
+.dot { fill: var(--s1); stroke: var(--surface); stroke-width: 2; }
+.ref { stroke: var(--ink2); stroke-width: 1; }
+.reflbl { fill: var(--ink2); font: 600 11px var(--font); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+
+.hrow { display: grid; grid-template-columns: minmax(70px, 130px) minmax(0, 1fr); gap: 10px; align-items: center; padding: 3px 0; }
+.hl { color: var(--ink2); font-size: 12.5px; overflow-wrap: anywhere; }
+.htrack { display: flex; align-items: center; min-width: 0; }
+.hbars { display: flex; gap: 2px; height: 16px; min-width: 0; }
+.hs { min-width: 2px; }
+.hs:last-child { border-radius: 0 4px 4px 0; }
+.hv { margin-left: 8px; font: 600 12px var(--font); color: var(--ink); white-space: nowrap; }
+
+.tw { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th { font: 600 11px var(--font); letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink2); text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--axis); white-space: nowrap; }
+td { padding: 7px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td .meta { font: 11.5px var(--mono); color: var(--muted); }
+.flag { display: inline-flex; gap: 5px; align-items: center; font-size: 12px; white-space: nowrap; }
+.flag svg { flex: none; }
+
+.how { margin-top: 16px; font-size: 13px; color: var(--ink2); }
+.how ul { margin: 8px 0 0; padding-left: 18px; }
+.how li { margin: 4px 0; max-width: 78ch; }
+
+#tip { position: fixed; z-index: 10; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--axis); border-radius: 6px; padding: 8px 10px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14); font-size: 12.5px; max-width: 260px; }
+.tt-title { color: var(--ink2); margin-bottom: 4px; overflow-wrap: anywhere; }
+.tt-row { display: flex; align-items: center; gap: 6px; }
+.tt-row b { font-weight: 650; color: var(--ink); }
+.tt-row span { color: var(--ink2); }
+.key { display: inline-block; width: 12px; height: 3px; border-radius: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div>
+      <h1>Board Pulse</h1>
+      <p class="sub">Delivery metrics from your GitHub Projects</p>
+    </div>
+    <div class="srcmeta" id="srcmeta"></div>
+  </header>
+
+  <div class="banner" id="banner" role="status">Showing sample data. Enter a token and an account or organization to load your own projects.</div>
+
+  <div class="layout">
+    <aside class="rail">
+      <section aria-labelledby="h-conn">
+        <h2 class="lbl" id="h-conn">Connect to GitHub</h2>
+        <form id="connectForm" class="form" autocomplete="off">
+          <label class="f" for="token">Token
+            <input type="password" id="token" name="token" placeholder="ghp_… or github_pat_…" autocomplete="new-password" spellcheck="false">
+          </label>
+          <label class="f" for="target">Account or organization
+            <input type="text" id="target" name="target" placeholder="your-org or https://github.com/orgs/your-org" autocomplete="off" spellcheck="false">
+          </label>
+          <button type="submit" class="btn" id="connect">Load projects</button>
+          <p class="hint">The token is sent only to api.github.com, straight from this page, and is not saved. It needs read:project, plus repo access for private issues. If the organization uses SAML single sign-on, authorize the token for it.</p>
+          <p class="err" id="loadMsg" role="alert" hidden></p>
+        </form>
+      </section>
+
+      <section aria-labelledby="h-proj">
+        <h2 class="lbl" id="h-proj">Projects</h2>
+        <input type="search" id="psearch" placeholder="Filter projects" aria-label="Filter projects">
+        <ul class="plist" id="plist"></ul>
+      </section>
+
+      <section aria-labelledby="h-people">
+        <h2 class="lbl" id="h-people">People</h2>
+        <button type="button" class="proj" id="allBtn"></button>
+        <label class="chk" for="inclClosed"><input type="checkbox" id="inclClosed"> Include closed projects (slower)</label>
+        <div id="membersBox">
+          <input type="search" id="msearch" placeholder="Filter members" aria-label="Filter members" hidden>
+          <p class="hint" id="membersNote" hidden></p>
+          <ul class="plist" id="mlist"></ul>
+        </div>
+      </section>
+    </aside>
+
+    <main class="main">
+      <p class="placeholder" id="placeholder" hidden></p>
+      <div id="dash">
+      <div class="phead"><h2 id="ptitle"></h2><span id="pextra"></span></div>
+      <div class="filters">
+        <div class="seg" role="group" aria-label="Date range" id="ranges"></div>
+      </div>
+      <details class="map" id="mapdet">
+        <summary>Field mapping<span id="mapsum"></span></summary>
+        <div id="mapbox"></div>
+      </details>
+      <div class="tiles" id="tiles"></div>
+      <div class="charts" id="charts"></div>
+      <details class="how">
+        <summary>How these are calculated</summary>
+        <ul>
+          <li><b>Done</b> means the status is marked Done in the field mapping. With no Status field, a closed or merged item is done. The done date is the closed or merged date, otherwise when the status last changed.</li>
+          <li><b>Throughput</b> counts items done per calendar week, weeks starting Monday, over the selected range.</li>
+          <li><b>Lead time</b> runs from when the issue or pull request was created to its done date. Project fields keep no status history, so a cycle time that starts at In progress cannot be computed from this export.</li>
+          <li><b>Velocity</b> is points completed per finished iteration, or items when no estimate field is mapped. <b>Plan accuracy</b> is completed divided by committed across finished iterations.</li>
+          <li><b>Stalled</b> means an item has sat in its current status longer than the p85 lead time, or 14 days when fewer than 5 items have finished.</li>
+          <li><b>People and summary views</b> combine every loaded project. Each project keeps its own status mapping and estimate field. An item with several assignees counts for each of them. Closed projects are skipped unless you include them.</li>
+        </ul>
+      </details>
+      </div>
+    </main>
+  </div>
+</div>
+<div id="tip" role="tooltip" hidden></div>
+
+<script>
+/* ===== pure helpers ===== */
+const DAY = 864e5;
+const NS = 'http://www.w3.org/2000/svg';
+const CLS = {
+  done: { label: 'Done', color: 'var(--s1)' },
+  active: { label: 'In progress', color: 'var(--s2)' },
+  waiting: { label: 'Waiting', color: 'var(--s3)' }
+};
+const RANGES = [
+  { weeks: 4, label: '4 weeks' }, { weeks: 8, label: '8 weeks' }, { weeks: 12, label: '12 weeks' },
+  { weeks: 26, label: '6 months' }, { weeks: 0, label: 'All time' }
+];
+
+function parseDate(v) {
+  if (v == null) return null;
+  const t = typeof v === 'number' ? v : Date.parse(v);
+  return Number.isNaN(t) ? null : t;
+}
+function weekStart(ms) {
+  const d = new Date(ms);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d.getTime();
+}
+function weekList(from, to) {
+  const out = [];
+  const d = new Date(weekStart(from));
+  while (d.getTime() <= to) { out.push(d.getTime()); d.setDate(d.getDate() + 7); }
+  return out;
+}
+function percentile(sorted, p) {
+  if (!sorted.length) return null;
+  const i = (sorted.length - 1) * p, lo = Math.floor(i), hi = Math.ceil(i);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (i - lo);
+}
+function rangeText(range) { return range.weeks ? 'Last ' + range.weeks + ' weeks' : 'All time'; }
+function safeUrl(u) { return typeof u === 'string' && /^https:\/\/github\.com\//.test(u); }
+function trunc(str, n) { str = String(str); return str.length > n ? str.slice(0, Math.max(1, n - 1)) + '…' : str; }
+function fmtDate(ms) { return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
+function fmtDateY(ms) { return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
+function fmtDays(d) {
+  if (d == null) return '—';
+  if (d < 1) return '<1d';
+  return (d < 10 ? String(Math.round(d * 10) / 10) : String(Math.round(d))) + 'd';
+}
+function fmtNum(n) {
+  if (n == null) return '—';
+  if (Math.abs(n) >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return String(Math.round(n * 10) / 10);
+}
+function niceScale(v, opt) {
+  const intOnly = opt && opt.int;
+  if (!(v > 0)) return { max: 1, step: 1 };
+  const raw = v / 4;
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  let step = [1, 2, 5, 10].map(k => k * p).find(x => x >= raw);
+  if (intOnly) step = Math.max(1, Math.ceil(step));
+  const max = Math.ceil(v / step - 1e-9) * step;
+  return { max: Math.max(max, step), step };
+}
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* ===== project model ===== */
+function fieldIndex(p) {
+  const idx = { select: [], number: [], iteration: [] };
+  if (p.fields && p.fields.length) {
+    for (const f of p.fields) {
+      if (f.dataType === 'SINGLE_SELECT') idx.select.push(f.name);
+      else if (f.dataType === 'NUMBER') idx.number.push(f.name);
+      else if (f.dataType === 'ITERATION') idx.iteration.push(f.name);
+    }
+    return idx;
+  }
+  const seen = new Map();
+  for (const it of p.items.slice(0, 500)) {
+    for (const [k, v] of Object.entries(it.values || {})) {
+      if (seen.has(k)) continue;
+      seen.set(k, typeof v === 'number' ? 'number' : (v && typeof v === 'object') ? 'iteration' : typeof v === 'string' ? 'select' : null);
+    }
+  }
+  for (const [k, t] of seen) if (t) idx[t].push(k);
+  return idx;
+}
+function statusValues(p, field) {
+  const f = (p.fields || []).find(x => x.name === field);
+  const out = ((f && f.options) || []).map(o => typeof o === 'string' ? o : o.name);
+  const seen = new Set(out);
+  for (const it of p.items) {
+    const v = it.values && it.values[field];
+    if (typeof v === 'string' && !seen.has(v)) { seen.add(v); out.push(v); }
+  }
+  return out;
+}
+function classify(v) {
+  if (/^(done|closed|complete|completed|shipped|released|resolved|merged|finished)$/i.test(v.trim())) return 'done';
+  if (/progress|doing|review|test|qa|wip|active|develop|blocked/i.test(v)) return 'active';
+  return 'waiting';
+}
+function defaultMeaning(p, field) {
+  const meaning = {};
+  for (const v of statusValues(p, field)) meaning[v] = classify(v);
+  return meaning;
+}
+function detectMapping(p) {
+  const idx = fieldIndex(p);
+  const status = idx.select.find(n => /^status$/i.test(n)) || idx.select[0] || null;
+  const estimate = idx.number.find(n => /estimate|point|size|effort|story/i.test(n)) || idx.number[0] || null;
+  const iteration = idx.iteration[0] || null;
+  return { status, estimate, iteration, meaning: status ? defaultMeaning(p, status) : {} };
+}
+
+function prepare(p, m) {
+  const rows = [];
+  for (const it of p.items) {
+    if (it.isArchived) continue;
+    const vals = it.values || {}, upd = it.valueUpdatedAt || {};
+    const statusRaw = m.status ? vals[m.status] : null;
+    const status = typeof statusRaw === 'string' ? statusRaw : '—';
+    const closedState = it.state === 'CLOSED' || it.state === 'MERGED';
+    let cls;
+    if (m.status) cls = statusRaw == null ? 'waiting' : (m.meaning[statusRaw] || 'waiting');
+    else cls = closedState ? 'done' : 'waiting';
+    const created = parseDate(it.createdAt) ?? parseDate(it.addedAt);
+    const statusAt = m.status ? parseDate(upd[m.status]) : null;
+    const closedAt = parseDate(it.mergedAt) ?? parseDate(it.closedAt);
+    const doneAt = cls === 'done' ? (closedAt ?? statusAt ?? parseDate(it.updatedAt)) : null;
+    const pts = m.estimate ? vals[m.estimate] : null;
+    const iter = m.iteration ? vals[m.iteration] : null;
+    rows.push({
+      id: it.id, project: p.title, title: it.title || '(untitled)', url: it.url, number: it.number, repo: it.repo,
+      status, cls, created, doneAt,
+      statusSince: statusAt ?? parseDate(it.updatedAt) ?? created,
+      points: typeof pts === 'number' ? pts : null,
+      iter: iter && typeof iter === 'object' ? iter : null,
+      assignees: it.assignees && it.assignees.length ? it.assignees : ['Unassigned']
+    });
+  }
+  return rows;
+}
+
+function buildRange(rows, preset, now) {
+  if (preset.weeks > 0) {
+    const span = preset.weeks * 7 * DAY;
+    return { weeks: preset.weeks, label: preset.label, from: now - span, to: now, prevFrom: now - 2 * span };
+  }
+  let min = null;
+  for (const r of rows) if (r.doneAt != null && (min == null || r.doneAt < min)) min = r.doneAt;
+  return { weeks: null, label: preset.label, from: min ?? now - 12 * 7 * DAY, to: now, prevFrom: null };
+}
+
+function computeMetrics(rows, m, range, now, opts) {
+  const wOf = r => m.estimate ? (r.points || 0) : 1;
+  const done = rows.filter(r => r.cls === 'done' && r.doneAt != null);
+  const inRange = done.filter(r => r.doneAt >= range.from && r.doneAt <= range.to);
+  const prev = range.prevFrom != null ? done.filter(r => r.doneAt >= range.prevFrom && r.doneAt < range.from) : null;
+
+  const weeks = weekList(range.from, range.to).map(start => ({ start, count: 0, points: 0 }));
+  const wIndex = new Map(weeks.map((w, i) => [w.start, i]));
+  for (const r of inRange) {
+    const i = wIndex.get(weekStart(r.doneAt));
+    if (i != null) { weeks[i].count++; weeks[i].points += r.points || 0; }
+  }
+
+  const leads = inRange.filter(r => r.created != null)
+    .map(r => ({ row: r, days: Math.max(0, (r.doneAt - r.created) / DAY) }))
+    .sort((a, b) => a.row.doneAt - b.row.doneAt);
+  const sorted = leads.map(l => l.days).sort((a, b) => a - b);
+  const p50 = percentile(sorted, 0.5), p85 = percentile(sorted, 0.85);
+  const spanWeeks = Math.max(1, (range.to - range.from) / (7 * DAY));
+  const pointsDone = inRange.reduce((a, r) => a + (r.points || 0), 0);
+
+  const im = new Map();
+  for (const r of rows) {
+    if (!r.iter || !r.iter.title) continue;
+    let e = im.get(r.iter.title);
+    if (!e) {
+      const start = parseDate(r.iter.startDate);
+      const dur = Number(r.iter.duration) || 14;
+      e = { title: r.iter.title, start, end: start != null ? start + dur * DAY : null, committed: 0, completed: 0, items: 0, doneItems: 0 };
+      im.set(r.iter.title, e);
+    }
+    const w = wOf(r);
+    e.committed += w; e.items++;
+    if (r.cls === 'done') { e.completed += w; e.doneItems++; }
+  }
+  const iters = [...im.values()]
+    .filter(e => e.start == null || (e.end >= range.from && e.start <= range.to))
+    .sort((a, b) => ((a.start ?? Infinity) - (b.start ?? Infinity)) || a.title.localeCompare(b.title));
+  const finished = iters.filter(e => e.end != null && e.end <= now && e.committed > 0);
+  const sumC = finished.reduce((a, e) => a + e.completed, 0);
+  const sumP = finished.reduce((a, e) => a + e.committed, 0);
+  const velocity = finished.length ? sumC / finished.length : null;
+  const accuracy = finished.length && sumP > 0 ? sumC / sumP : null;
+
+  const stallDays = opts && opts.stallDays != null ? opts.stallDays : (sorted.length >= 5 ? Math.max(3, p85) : 14);
+  const wip = rows.filter(r => r.cls === 'active')
+    .map(r => ({ row: r, days: Math.max(0, (now - r.statusSince) / DAY) }))
+    .sort((a, b) => b.days - a.days);
+  const stalled = wip.filter(x => x.days > stallDays).length;
+
+  const wl = new Map();
+  for (const r of rows) {
+    if (r.cls === 'done' && !(r.doneAt != null && r.doneAt >= range.from && r.doneAt <= range.to)) continue;
+    for (const a of r.assignees) {
+      let e = wl.get(a);
+      if (!e) { e = { name: a, done: 0, active: 0, waiting: 0 }; wl.set(a, e); }
+      e[r.cls]++;
+    }
+  }
+  const workload = [...wl.values()].sort((a, b) => (b.done + b.active + b.waiting) - (a.done + a.active + a.waiting) || a.name.localeCompare(b.name));
+
+  const counts = new Map();
+  for (const r of rows) {
+    const k = m.status ? r.status : (r.cls === 'done' ? 'Closed' : 'Open');
+    let e = counts.get(k);
+    if (!e) { e = { label: k, cls: r.cls, count: 0 }; counts.set(k, e); }
+    e.count++;
+  }
+  return {
+    inRange, prev, weeks, leads, p50, p85, spanWeeks, perWeek: inRange.length / spanWeeks, pointsDone,
+    iters, velocity, accuracy, finishedCount: finished.length, wip, stalled, stallDays, workload,
+    counts: [...counts.values()], openCount: rows.filter(r => r.cls !== 'done').length, total: rows.length
+  };
+}
+
+/* ===== sample data (marked as sample in the page) ===== */
+function makeSample(now) {
+  const rnd = mulberry32(11);
+  const rint = (a, b) => a + Math.floor(rnd() * (b - a + 1));
+  const pick = a => a[Math.floor(rnd() * a.length)];
+  const people = ['alex', 'sam', 'riley', 'jordan', 'casey'];
+  const titles = ['Fix token refresh race on login', 'Add CSV export to reports', 'Paginate the activity feed', 'Cache user preferences', 'Retry failed uploads', 'Dark mode for settings', 'Rate-limit password resets', 'Move images to a CDN', 'Audit log for role changes', 'Fix timezone bug in reminders', 'Search by tag', 'Bulk archive for old items', 'Improve cold start time', 'Add webhook signing', 'Fix crash on empty state', 'Localize date formats', 'Reduce bundle size', 'Export to PDF', 'Keyboard shortcuts', 'Email digest preview'];
+  const iso = ms => new Date(ms).toISOString();
+  const dateStr = ms => new Date(ms + 12 * 36e5).toISOString().slice(0, 10);
+  const T = i => titles[i % titles.length] + (i >= titles.length ? ' (' + (Math.floor(i / titles.length) + 1) + ')' : '');
+
+  const curStart = weekStart(now) - 7 * DAY;
+  const iterations = Array.from({ length: 8 }, (_, k) => ({ title: 'Sprint ' + (k + 13), startDate: dateStr(curStart - (7 - k) * 14 * DAY), duration: 14 }));
+  const itemsA = [];
+  let n = 100;
+  function addA(o) {
+    n++;
+    const vals = { Status: o.status };
+    if (o.pts != null) vals.Estimate = o.pts;
+    if (o.iter != null) vals.Iteration = iterations[o.iter];
+    itemsA.push({
+      id: 'sa' + n, type: 'ISSUE', isArchived: false, title: T(n - 101), number: n, url: null, repo: 'example/app',
+      state: o.done ? 'CLOSED' : 'OPEN', createdAt: iso(o.created), addedAt: iso(o.created), updatedAt: iso(o.since),
+      closedAt: o.done ? iso(o.doneAt) : null, mergedAt: null, assignees: [pick(people)],
+      values: vals, valueUpdatedAt: { Status: iso(o.since) }
+    });
+  }
+  for (let k = 0; k < 8; k++) {
+    const st = curStart - (7 - k) * 14 * DAY;
+    const cnt = rint(8, 11);
+    for (let j = 0; j < cnt; j++) {
+      const created = st - rnd() * 12 * DAY, pts = pick([1, 2, 3, 3, 5, 5, 8]), r = rnd();
+      if (k < 7) {
+        if (r < 0.82) { const d = Math.min(now - DAY, st + (2 + rnd() * 11.5) * DAY); addA({ created, pts, iter: k, status: 'Done', done: true, doneAt: d, since: d }); }
+        else if (r < 0.92) { const d = Math.min(now - DAY, st + (15 + rnd() * 10) * DAY); addA({ created, pts, iter: k, status: 'Done', done: true, doneAt: d, since: d }); }
+        else addA({ created, pts, iter: k, status: pick(['In Progress', 'In Review']), done: false, since: st + (8 + rnd() * 5) * DAY });
+      } else if (r < 0.3) { const d = Math.min(now - DAY / 2, st + (1 + rnd() * 5) * DAY); addA({ created, pts, iter: k, status: 'Done', done: true, doneAt: d, since: d }); }
+      else if (r < 0.55) addA({ created, pts, iter: k, status: 'In Review', done: false, since: now - rnd() * 3 * DAY });
+      else if (r < 0.8) addA({ created, pts, iter: k, status: 'In Progress', done: false, since: now - rnd() * 8 * DAY });
+      else addA({ created, pts, iter: k, status: 'Todo', done: false, since: st });
+    }
+  }
+  for (let j = 0; j < 10; j++) { const c = now - rint(3, 60) * DAY; addA({ created: c, pts: null, iter: null, status: 'Backlog', done: false, since: c }); }
+
+  const itemsB = [];
+  for (let i = 0; i < 46; i++) {
+    const created = now - rnd() * 98 * DAY, r = rnd();
+    let status = 'Todo', done = false, doneAt = null, since = created;
+    if (r < 0.62) {
+      const d = created + (1 + Math.pow(rnd(), 1.8) * 28) * DAY;
+      if (d < now - DAY / 2) { status = 'Done'; done = true; doneAt = d; since = d; }
+      else { status = 'Doing'; since = now - rnd() * 6 * DAY; }
+    } else if (r < 0.74) { status = 'Doing'; since = now - rnd() * 22 * DAY; }
+    else if (r < 0.84) { status = 'In QA'; since = now - rnd() * 5 * DAY; }
+    itemsB.push({
+      id: 'sb' + i, type: 'ISSUE', isArchived: false, title: 'Migrate ' + pick(['billing', 'auth', 'search', 'reports', 'notifications', 'uploads', 'admin']) + ' ' + pick(['service', 'jobs', 'tables', 'endpoints', 'config']),
+      number: 200 + i, url: null, repo: 'example/platform', state: done ? 'CLOSED' : 'OPEN', createdAt: iso(created), addedAt: iso(created),
+      updatedAt: iso(since), closedAt: done ? iso(doneAt) : null, mergedAt: null, assignees: rnd() < 0.15 ? [] : [pick(people)],
+      values: { Status: status }, valueUpdatedAt: { Status: iso(since) }
+    });
+  }
+  return {
+    exportedAt: iso(now), owner: { login: 'sample', type: 'organization' }, fileName: null, membersNote: '', members: [...people, 'taylor'].map(l => ({ login: l, name: '' })),
+    projects: [
+      { id: 'sample-a', number: 1, title: 'Sample: Mobile app sprints', url: null, closed: false, updatedAt: iso(now - 3 * 36e5),
+        fields: [{ name: 'Status', dataType: 'SINGLE_SELECT', options: ['Backlog', 'Todo', 'In Progress', 'In Review', 'Done'] }, { name: 'Estimate', dataType: 'NUMBER' }, { name: 'Iteration', dataType: 'ITERATION', iterations }],
+        items: itemsA },
+      { id: 'sample-b', number: 2, title: 'Sample: Platform migration', url: null, closed: false, updatedAt: iso(now - 2 * DAY),
+        fields: [{ name: 'Status', dataType: 'SINGLE_SELECT', options: ['Todo', 'Doing', 'In QA', 'Done'] }],
+        items: itemsB }
+    ]
+  };
+}
+
+/* ===== GitHub client (runs in the browser, talks only to api.github.com) ===== */
+let ghToken = '';
+class GhError extends Error {}
+const GH_FV = 'field { ... on ProjectV2FieldCommon { name } }';
+const Q_LIST = kind => `query($login: String!, $after: String) { ${kind}(login: $login) { projectsV2(first: 50, after: $after) { nodes { id number title url closed updatedAt shortDescription items { totalCount } } pageInfo { hasNextPage endCursor } } } }`;
+const Q_FIELDS = `query($id: ID!) { node(id: $id) { ... on ProjectV2 { fields(first: 50) { nodes { ... on ProjectV2FieldCommon { name dataType } ... on ProjectV2SingleSelectField { options { name } } ... on ProjectV2IterationField { configuration { iterations { title startDate duration } completedIterations { title startDate duration } } } } } } } }`;
+const Q_ITEMS = `query($id: ID!, $after: String) { node(id: $id) { ... on ProjectV2 { items(first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes { id type isArchived createdAt updatedAt content { __typename ... on Issue { number title url state closedAt createdAt repository { nameWithOwner } assignees(first: 5) { nodes { login } } } ... on PullRequest { number title url state closedAt mergedAt createdAt repository { nameWithOwner } assignees(first: 5) { nodes { login } } } ... on DraftIssue { title createdAt assignees(first: 5) { nodes { login } } } } fieldValues(first: 40) { nodes { ... on ProjectV2ItemFieldSingleSelectValue { name updatedAt ${GH_FV} } ... on ProjectV2ItemFieldNumberValue { number updatedAt ${GH_FV} } ... on ProjectV2ItemFieldDateValue { date updatedAt ${GH_FV} } ... on ProjectV2ItemFieldIterationValue { title startDate duration updatedAt ${GH_FV} } ... on ProjectV2ItemFieldTextValue { text updatedAt ${GH_FV} } } } } } } } }`;
+
+async function gql(token, query, variables) {
+  let res;
+  try {
+    res = await fetch('https://api.github.com/graphql', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, variables })
+    });
+  } catch (e) {
+    throw new GhError('Could not reach api.github.com. Check your connection. If this page is embedded inside another app, open the file in a regular browser tab.');
+  }
+  let body = null;
+  try { body = await res.json(); } catch (e) { /* not JSON */ }
+  const msg = body && body.message ? body.message : '';
+  if (res.status === 401) throw new GhError('GitHub rejected the token (401). Check that it is valid and has not expired.');
+  if (res.status === 403 || res.status === 429) {
+    throw new GhError(/rate limit/i.test(msg) ? 'GitHub rate limit reached. Wait a few minutes and try again.' : (msg || 'GitHub refused the request (403). If the organization uses SAML single sign-on, authorize the token for it.'));
+  }
+  if (!body) throw new GhError('GitHub returned HTTP ' + res.status + ' with no readable answer.');
+  if (msg && !body.data) throw new GhError(msg);
+  return body;
+}
+function loginFrom(text) {
+  const s = String(text || '').trim();
+  try {
+    const parts = new URL(s).pathname.split('/').filter(Boolean);
+    if (parts[0] === 'orgs' || parts[0] === 'users') return { login: parts[1], hint: parts[0] === 'orgs' ? 'organization' : 'user' };
+    return { login: parts[0], hint: null };
+  } catch (e) {
+    return { login: s.replace(/^@/, ''), hint: null };
+  }
+}
+async function listProjects(token, login, hint) {
+  const kinds = hint === 'user' ? ['user', 'organization'] : ['organization', 'user'];
+  for (const kind of kinds) {
+    const nodes = [];
+    let after = null, found = false;
+    for (;;) {
+      const body = await gql(token, Q_LIST(kind), { login, after });
+      const owner = body.data && body.data[kind];
+      if (!owner) {
+        const err = body.errors && body.errors[0];
+        if (err && err.type && err.type !== 'NOT_FOUND') throw new GhError(err.message);
+        break;
+      }
+      found = true;
+      const conn = owner.projectsV2;
+      nodes.push(...conn.nodes.filter(Boolean));
+      if (!conn.pageInfo.hasNextPage) break;
+      after = conn.pageInfo.endCursor;
+    }
+    if (found) return { kind, nodes };
+  }
+  throw new GhError('No user or organization named "' + login + '" was found, or the token cannot see it.');
+}
+function flattenField(f) {
+  const out = { name: f.name, dataType: f.dataType };
+  if (f.options) out.options = f.options.map(o => o.name);
+  if (f.configuration) out.iterations = [...(f.configuration.completedIterations || []), ...(f.configuration.iterations || [])];
+  return out;
+}
+function flattenItem(n) {
+  const c = n.content || {}, values = {}, valueUpdatedAt = {};
+  for (const v of n.fieldValues.nodes) {
+    if (!v || !v.field || !v.field.name) continue;
+    const key = v.field.name;
+    if (v.startDate !== undefined) values[key] = { title: v.title, startDate: v.startDate, duration: v.duration };
+    else if (v.name !== undefined) values[key] = v.name;
+    else if (v.number !== undefined) values[key] = v.number;
+    else if (v.date !== undefined) values[key] = v.date;
+    else if (v.text !== undefined) values[key] = v.text;
+    if (v.updatedAt) valueUpdatedAt[key] = v.updatedAt;
+  }
+  return {
+    id: n.id, type: n.type, isArchived: !!n.isArchived,
+    title: c.title || (values.Title ?? ''), number: c.number ?? null, url: c.url ?? null,
+    repo: c.repository ? c.repository.nameWithOwner : null, state: c.state ?? null,
+    createdAt: c.createdAt || n.createdAt, addedAt: n.createdAt, updatedAt: n.updatedAt,
+    closedAt: c.closedAt ?? null, mergedAt: c.mergedAt ?? null,
+    assignees: c.assignees ? c.assignees.nodes.map(a => a.login) : [], values, valueUpdatedAt
+  };
+}
+async function fetchProject(token, stub, onProgress) {
+  const fb = await gql(token, Q_FIELDS, { id: stub.id });
+  const fieldNodes = (fb.data && fb.data.node && fb.data.node.fields.nodes) || [];
+  const fields = fieldNodes.filter(f => f && f.name).map(flattenField);
+  const items = [];
+  let after = null;
+  for (;;) {
+    const body = await gql(token, Q_ITEMS, { id: stub.id, after });
+    if (body.errors && !(body.data && body.data.node)) throw new GhError(body.errors[0].message);
+    const conn = body.data.node.items;
+    for (const n of conn.nodes) if (n) items.push(flattenItem(n));
+    onProgress(items.length, stub.count);
+    if (!conn.pageInfo.hasNextPage) break;
+    after = conn.pageInfo.endCursor;
+  }
+  return { fields, items };
+}
+
+const MEMBERS_NOTE = 'GitHub did not return the member list. Reading it needs read:org on the token. People are taken from item assignees once the projects load.';
+const Q_MEMBERS = `query($login: String!, $after: String) { organization(login: $login) { membersWithRole(first: 100, after: $after) { nodes { login name } pageInfo { hasNextPage endCursor } } } }`;
+async function listMembers(token, login) {
+  const out = [];
+  let after = null;
+  for (;;) {
+    const body = await gql(token, Q_MEMBERS, { login, after });
+    const conn = body.data && body.data.organization && body.data.organization.membersWithRole;
+    if (!conn) { const err = body.errors && body.errors[0]; throw new GhError(err ? err.message : 'Could not read the member list.'); }
+    out.push(...conn.nodes.filter(Boolean));
+    if (!conn.pageInfo.hasNextPage || out.length >= 2000) break;
+    after = conn.pageInfo.endCursor;
+  }
+  return out;
+}
+
+/* ===== people and account views (combine every loaded project) ===== */
+function mapFor(p) {
+  let m = state.maps.get(p);
+  if (!m) { m = detectMapping(p); state.maps.set(p, m); }
+  return m;
+}
+function scopeProjects() { return state.data.projects.filter(p => Array.isArray(p.items) && (state.includeClosed || !p.closed)); }
+function allRows() {
+  const rows = [];
+  for (const p of scopeProjects()) rows.push(...prepare(p, mapFor(p)));
+  return rows;
+}
+function isOrg() { return !!state.data && !!state.data.owner && state.data.owner.type !== 'user'; }
+function peopleList() {
+  const used = scopeProjects();
+  const key = used.map(p => p.id).join(',') + '|' + ((state.data.members || []).length);
+  if (state.peopleKey === key && state.peopleCache) return state.peopleCache;
+  const map = new Map();
+  for (const m of state.data.members || []) map.set(m.login, { login: m.login, name: m.name || '', member: true });
+  for (const p of used) for (const it of p.items) for (const a of it.assignees || []) if (!map.has(a)) map.set(a, { login: a, name: '', member: false });
+  const out = [...map.values()].sort((a, b) => a.login.localeCompare(b.login, undefined, { sensitivity: 'base' }));
+  state.peopleKey = key; state.peopleCache = out;
+  return out;
+}
+function stallThreshold(rows, range) {
+  const leads = [];
+  for (const r of rows) if (r.cls === 'done' && r.doneAt != null && r.doneAt >= range.from && r.doneAt <= range.to && r.created != null) leads.push(Math.max(0, (r.doneAt - r.created) / DAY));
+  leads.sort((a, b) => a - b);
+  return leads.length >= 5 ? Math.max(3, percentile(leads, 0.85)) : 14;
+}
+function personRow(login, rows, range, now, stall) {
+  const done = rows.filter(r => r.cls === 'done' && r.doneAt != null && r.doneAt >= range.from && r.doneAt <= range.to);
+  const leads = done.filter(r => r.created != null).map(r => Math.max(0, (r.doneAt - r.created) / DAY)).sort((a, b) => a - b);
+  const active = rows.filter(r => r.cls === 'active');
+  const spanWeeks = Math.max(1, (range.to - range.from) / (7 * DAY));
+  return {
+    login, name: '', done: done.length, perWeek: done.length / spanWeeks,
+    p50: percentile(leads, 0.5), p85: percentile(leads, 0.85), points: done.reduce((a, r) => a + (r.points || 0), 0),
+    active: active.length, stalled: active.filter(r => (now - r.statusSince) / DAY > stall).length,
+    waiting: rows.filter(r => r.cls === 'waiting').length, projects: new Set(rows.map(r => r.project)).size
+  };
+}
+function summarizePeople(rows, members, range, now, stall) {
+  const by = new Map();
+  for (const r of rows) for (const a of r.assignees) { let e = by.get(a); if (!e) { e = []; by.set(a, e); } e.push(r); }
+  const out = [];
+  for (const [login, rs] of by) out.push(personRow(login, rs, range, now, stall));
+  for (const mem of members || []) if (!by.has(mem.login)) out.push(personRow(mem.login, [], range, now, stall));
+  const names = new Map((members || []).map(x => [x.login, x.name]));
+  for (const x of out) x.name = names.get(x.login) || '';
+  return out;
+}
+
+/* ===== DOM helpers ===== */
+function build(e, props, kids) {
+  if (props) {
+    for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === 'class') e.setAttribute('class', v);
+      else if (k === 'text') e.textContent = v;
+      else if (k.startsWith('on') && typeof v === 'function') e.addEventListener(k.slice(2), v);
+      else e.setAttribute(k, v === true ? '' : String(v));
+    }
+  }
+  for (const kid of kids.flat(Infinity)) {
+    if (kid == null || kid === false) continue;
+    e.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  }
+  return e;
+}
+const h = (t, p, ...k) => build(document.createElement(t), p, k);
+const sv = (t, p, ...k) => build(document.createElementNS(NS, t), p, k);
+const $ = (sel) => document.querySelector(sel);
+
+const state = { data: null, isSample: true, pi: 0, maps: new Map(), preset: RANGES[2], query: '', last: null, seq: 0, view: 'project', person: null, includeClosed: false, mquery: '', memSort: { key: 'done', dir: -1 }, peopleKey: '', peopleCache: null };
+const cards = {};
+
+function curProject() { return state.data.projects[state.pi]; }
+function curMap() {
+  const p = curProject();
+  let m = state.maps.get(p);
+  if (!m) { m = detectMapping(p); state.maps.set(p, m); }
+  return m;
+}
+function sortedIdx() {
+  return state.data.projects.map((p, i) => i).sort((a, b) => {
+    const pa = state.data.projects[a], pb = state.data.projects[b];
+    return (pa.closed ? 1 : 0) - (pb.closed ? 1 : 0) || (parseDate(pb.updatedAt) || 0) - (parseDate(pa.updatedAt) || 0);
+  });
+}
+
+/* ===== tooltip ===== */
+function placeTip(evt) {
+  const t = $('#tip'), pad = 12, r = t.getBoundingClientRect();
+  let x = evt.clientX + 14, y = evt.clientY + 14;
+  if (x + r.width > innerWidth - pad) x = evt.clientX - r.width - 14;
+  if (y + r.height > innerHeight - pad) y = evt.clientY - r.height - 14;
+  t.style.left = Math.max(pad, x) + 'px';
+  t.style.top = Math.max(pad, y) + 'px';
+}
+function showTip(evt, title, rows) {
+  const t = $('#tip');
+  t.replaceChildren(h('div', { class: 'tt-title', text: title }),
+    ...rows.map(r => h('div', { class: 'tt-row' }, r.color ? h('i', { class: 'key', style: 'background:' + r.color }) : null, h('b', { text: r.value }), h('span', { text: r.label }))));
+  t.hidden = false;
+  placeTip(evt);
+}
+function hideTip() { $('#tip').hidden = true; }
+function elPoint(el) { const r = el.getBoundingClientRect(); return { clientX: r.left + r.width / 2, clientY: r.top + Math.min(r.height / 2, 40) }; }
+
+/* ===== cards ===== */
+function makeCard(id, title, wide) {
+  const sub = h('p', { class: 'csub' });
+  const legend = h('div', { class: 'legend' });
+  const body = h('div', { class: 'cbody' });
+  const tbl = h('div', { class: 'tblbox' });
+  const tdet = h('details', { class: 'tbl' }, h('summary', { text: 'Table' }), tbl);
+  const root = h('section', { class: 'card' + (wide ? ' wide' : '') }, h('h3', { text: title }), sub, legend, body, tdet);
+  cards[id] = { root, sub, legend, body, tbl, tdet };
+  return root;
+}
+function setTable(c, head, rows, note) {
+  const t = h('table', {},
+    h('thead', {}, h('tr', {}, head.map((x, i) => h('th', { class: i > 0 ? 'num' : null, text: x })))),
+    h('tbody', {}, rows.map(r => h('tr', {}, r.map((cell, i) => h('td', { class: i > 0 ? 'num' : null, text: cell }))))));
+  c.tbl.replaceChildren(h('div', { class: 'tw' }, t), note ? h('p', { class: 'csub', text: note }) : null);
+}
+function emptyMsg(msg) { return h('p', { class: 'empty', text: msg }); }
+function legendOf(c, items) {
+  c.legend.replaceChildren(...items.map(it => h('span', {}, h('i', { style: 'background:' + it.color }), it.label)));
+}
+function colPath(x, y, w, hh, r) {
+  r = Math.min(r, w / 2, hh);
+  return `M${x},${y + hh}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + hh}Z`;
+}
+function yAxis(svg, sc, y, mg, w, fmt) {
+  const n = Math.round(sc.max / sc.step);
+  for (let i = 0; i <= n; i++) {
+    const v = i * sc.step, yy = y(v);
+    svg.append(sv('line', { x1: mg.l, x2: w - mg.r, y1: yy, y2: yy, class: i === 0 ? 'ax' : 'gl' }),
+      sv('text', { x: mg.l - 6, y: yy + 4, class: 'tick', 'text-anchor': 'end', text: (fmt || fmtNum)(v) }));
+  }
+}
+
+/* ===== charts ===== */
+function drawThroughput(L) {
+  const c = cards.tp, { M, m, range } = L;
+  c.body.replaceChildren(); c.legend.replaceChildren();
+  c.sub.textContent = `${rangeText(range)} · ${M.inRange.length} items done · weeks start Monday`;
+  const head = m.estimate ? ['Week of', 'Items done', 'Points'] : ['Week of', 'Items done'];
+  setTable(c, head, M.weeks.map(w => m.estimate ? [fmtDateY(w.start), String(w.count), fmtNum(w.points)] : [fmtDateY(w.start), String(w.count)]));
+  if (!M.inRange.length) { c.body.append(emptyMsg('No finished items in this range.')); return; }
+  const w = c.body.clientWidth || 560, H = 220, mg = { l: 34, r: 10, t: 16, b: 26 };
+  const iw = w - mg.l - mg.r, ih = H - mg.t - mg.b, n = M.weeks.length;
+  const maxV = Math.max(1, ...M.weeks.map(x => x.count));
+  const sc = niceScale(maxV, { int: true });
+  const y = v => mg.t + ih - (v / sc.max) * ih;
+  const svg = sv('svg', { viewBox: `0 0 ${w} ${H}`, width: w, height: H, class: 'chart', role: 'img', 'aria-label': `Items done per week over ${n} weeks, ${M.inRange.length} in total` });
+  yAxis(svg, sc, y, mg, w);
+  const band = iw / n, bw = Math.min(24, Math.max(2, band * 0.62));
+  const maxIdx = M.weeks.findIndex(x => x.count === maxV);
+  const k = Math.max(1, Math.ceil(n / Math.max(1, Math.floor(iw / 56))));
+  M.weeks.forEach((wk, i) => {
+    const cx = mg.l + band * (i + 0.5), top = y(wk.count), base = y(0);
+    let bar = null;
+    if (wk.count > 0) { bar = sv('path', { d: colPath(cx - bw / 2, top, bw, base - top, 4), class: 'mark s1' }); svg.append(bar); }
+    if (i === maxIdx) svg.append(sv('text', { x: cx, y: top - 5, class: 'val', 'text-anchor': 'middle', text: String(wk.count) }));
+    if (i % k === 0) svg.append(sv('text', { x: cx, y: H - 8, class: 'tick', 'text-anchor': 'middle', text: fmtDate(wk.start) }));
+    const rows = [{ value: String(wk.count), label: 'items done', color: 'var(--s1)' }];
+    if (m.estimate) rows.push({ value: fmtNum(wk.points), label: 'points' });
+    const show = e => { if (bar) bar.classList.add('lift'); showTip(e, 'Week of ' + fmtDate(wk.start) + (i === n - 1 ? ' (so far)' : ''), rows); };
+    const hit = sv('rect', {
+      x: mg.l + band * i, y: mg.t, width: band, height: ih, fill: 'transparent', tabindex: 0,
+      'aria-label': `Week of ${fmtDate(wk.start)}: ${wk.count} items done`,
+      onpointermove: show, onfocus: () => show(elPoint(hit)),
+      onpointerleave: () => { if (bar) bar.classList.remove('lift'); hideTip(); },
+      onblur: () => { if (bar) bar.classList.remove('lift'); hideTip(); }
+    });
+    svg.append(hit);
+  });
+  c.body.append(svg);
+}
+
+function drawLead(L) {
+  const c = cards.lead, { M, range } = L;
+  c.body.replaceChildren(); c.legend.replaceChildren();
+  c.sub.textContent = M.leads.length ? `${M.leads.length} finished items, from created to done` : 'From created to done';
+  const shown = [...M.leads].sort((a, b) => b.row.doneAt - a.row.doneAt).slice(0, 100);
+  setTable(c, ['Item', 'Done', 'Lead time (days)'], shown.map(l => [trunc(l.row.title, 60), fmtDateY(l.row.doneAt), String(Math.round(l.days * 10) / 10)]),
+    M.leads.length > 100 ? 'Showing the 100 most recent items.' : null);
+  if (!M.leads.length) { c.body.append(emptyMsg('No finished items in this range.')); return; }
+  const w = c.body.clientWidth || 560, H = 240, mg = { l: 36, r: 12, t: 14, b: 26 };
+  const iw = w - mg.l - mg.r, ih = H - mg.t - mg.b;
+  const sc = niceScale(Math.max(...M.leads.map(x => x.days), M.p85 || 0), { int: true });
+  const y = v => mg.t + ih - (v / sc.max) * ih;
+  const span = Math.max(1, range.to - range.from);
+  const x = t => mg.l + ((t - range.from) / span) * iw;
+  const svg = sv('svg', { viewBox: `0 0 ${w} ${H}`, width: w, height: H, class: 'chart', role: 'img', 'aria-label': `Lead time of ${M.leads.length} finished items. Median ${fmtDays(M.p50)}, 85th percentile ${fmtDays(M.p85)}.` });
+  yAxis(svg, sc, y, mg, w, v => fmtNum(v) + 'd');
+  const nt = Math.max(2, Math.min(6, Math.floor(iw / 110)));
+  for (let i = 0; i <= nt; i++) {
+    const t = range.from + span * i / nt;
+    svg.append(sv('text', { x: x(t), y: H - 8, class: 'tick', 'text-anchor': i === 0 ? 'start' : i === nt ? 'end' : 'middle', text: fmtDate(t) }));
+  }
+  for (const [v, name, dy] of [[M.p85, 'p85', -4], [M.p50, 'p50', 13]]) {
+    const yy = y(v);
+    svg.append(sv('line', { x1: mg.l, x2: w - mg.r, y1: yy, y2: yy, class: 'ref' }),
+      sv('text', { x: w - mg.r - 4, y: yy + dy, 'text-anchor': 'end', class: 'reflbl', text: `${name} · ${fmtDays(v)}` }));
+  }
+  const dots = M.leads.map(l => {
+    const d = sv('circle', { cx: x(l.row.doneAt), cy: y(l.days), r: 4, class: 'dot' });
+    svg.append(d);
+    return { d, px: x(l.row.doneAt), py: y(l.days), l };
+  });
+  let hot = null;
+  const overlay = sv('rect', { x: mg.l, y: mg.t, width: iw, height: ih, fill: 'transparent' });
+  overlay.addEventListener('pointermove', e => {
+    const bb = svg.getBoundingClientRect(), k = w / (bb.width || w);
+    const px = (e.clientX - bb.left) * k, py = (e.clientY - bb.top) * k;
+    let best = null, bd = 28 * 28;
+    for (const d of dots) { const dd = (d.px - px) ** 2 + (d.py - py) ** 2; if (dd < bd) { bd = dd; best = d; } }
+    if (hot && hot !== best) hot.d.setAttribute('r', 4);
+    if (best) {
+      best.d.setAttribute('r', 6); hot = best;
+      showTip(e, trunc(best.l.row.title, 70), [{ value: fmtDays(best.l.days), label: 'created to done' }, { value: fmtDate(best.l.row.doneAt), label: 'done' }]);
+    } else { hot = null; hideTip(); }
+  });
+  overlay.addEventListener('pointerleave', () => { if (hot) hot.d.setAttribute('r', 4); hot = null; hideTip(); });
+  svg.append(overlay);
+  c.body.append(svg);
+}
+
+function drawVelocity(L) {
+  const c = cards.vel, { M, m } = L;
+  c.body.replaceChildren(); c.legend.replaceChildren();
+  const unit = m.estimate ? 'points' : 'items';
+  c.sub.textContent = `Per iteration, in ${unit}`;
+  setTable(c, ['Iteration', 'Committed', 'Completed', 'Accuracy'], []);
+  if (!m.iteration) { c.body.append(emptyMsg('This project has no iteration field, so there is no sprint view. If it has one, choose it in Field mapping.')); return; }
+  const its = M.iters.slice(-12);
+  if (!its.length) { c.body.append(emptyMsg('No iterations overlap this range.')); return; }
+  setTable(c, ['Iteration', 'Committed', 'Completed', 'Accuracy'], its.map(e => [e.title, fmtNum(e.committed), fmtNum(e.completed), e.committed > 0 ? Math.round(e.completed / e.committed * 100) + '%' : '—']));
+  legendOf(c, [{ label: 'Completed', color: 'var(--s1)' }, { label: 'Committed', color: 'var(--muted)' }]);
+  const w = c.body.clientWidth || 560, H = 220, mg = { l: 34, r: 10, t: 14, b: 26 };
+  const iw = w - mg.l - mg.r, ih = H - mg.t - mg.b, n = its.length;
+  const sc = niceScale(Math.max(1, ...its.map(e => Math.max(e.committed, e.completed))));
+  const y = v => mg.t + ih - (v / sc.max) * ih;
+  const svg = sv('svg', { viewBox: `0 0 ${w} ${H}`, width: w, height: H, class: 'chart', role: 'img', 'aria-label': `Committed and completed ${unit} for ${n} iterations` });
+  yAxis(svg, sc, y, mg, w);
+  const band = iw / n, bw = Math.min(24, Math.max(3, band * 0.36));
+  const maxChars = Math.max(3, Math.floor(band / 6.2)), k = Math.max(1, Math.ceil(46 / band));
+  its.forEach((e, i) => {
+    const cx = mg.l + band * (i + 0.5), base = y(0);
+    const bars = [];
+    for (const [v, cls, x0] of [[e.committed, 'plan', cx - bw - 1], [e.completed, 's1', cx + 1]]) {
+      if (v > 0) { const b = sv('path', { d: colPath(x0, y(v), bw, base - y(v), 4), class: 'mark ' + cls }); svg.append(b); bars.push(b); }
+    }
+    if (i % k === 0) svg.append(sv('text', { x: cx, y: H - 8, class: 'tick', 'text-anchor': 'middle', text: trunc(e.title, maxChars) }));
+    const acc = e.committed > 0 ? Math.round(e.completed / e.committed * 100) + '%' : '—';
+    const rows = [{ value: fmtNum(e.completed), label: 'completed', color: 'var(--s1)' }, { value: fmtNum(e.committed), label: 'committed', color: 'var(--muted)' }, { value: acc, label: 'accuracy' }, { value: `${e.doneItems} of ${e.items}`, label: 'items done' }];
+    const show = ev => { bars.forEach(b => b.classList.add('lift')); showTip(ev, e.title, rows); };
+    const off = () => { bars.forEach(b => b.classList.remove('lift')); hideTip(); };
+    const hit = sv('rect', { x: mg.l + band * i, y: mg.t, width: band, height: ih, fill: 'transparent', tabindex: 0, 'aria-label': `${e.title}: ${fmtNum(e.completed)} completed of ${fmtNum(e.committed)} committed`, onpointermove: show, onfocus: () => show(elPoint(hit)), onpointerleave: off, onblur: off });
+    svg.append(hit);
+  });
+  c.body.append(svg);
+}
+
+function hbarRow(label, segs, max, valueText) {
+  const total = segs.reduce((a, x) => a + x.v, 0);
+  const width = total > 0 ? Math.max(2, total / max * 86) : 0;
+  return h('div', { class: 'hrow' },
+    h('div', { class: 'hl', text: label }),
+    h('div', { class: 'htrack' },
+      h('div', { class: 'hbars', style: `width:${width}%` },
+        segs.filter(x => x.v > 0).map(x => h('div', {
+          class: 'hs', style: `flex:${x.v} 1 0;background:${x.color}`,
+          onpointermove: e => showTip(e, label, [{ value: String(x.v), label: x.label, color: x.color }]),
+          onpointerleave: hideTip
+        }))),
+      h('span', { class: 'hv', text: valueText })));
+}
+
+function drawSnapshot(L) {
+  const c = cards.snap, { M, m, p } = L;
+  c.body.replaceChildren(); c.legend.replaceChildren();
+  c.sub.textContent = `${M.total} items on the board right now`;
+  const order = m.status ? [...statusValues(p, m.status), '—'] : ['Open', 'Closed'];
+  const byLabel = new Map(M.counts.map(e => [e.label, e]));
+  const rows = order.filter(k => byLabel.has(k)).map(k => byLabel.get(k));
+  for (const e of M.counts) if (!order.includes(e.label)) rows.push(e);
+  setTable(c, ['Status', 'Meaning', 'Items'], rows.map(e => [e.label, CLS[e.cls].label, String(e.count)]));
+  if (!rows.length) { c.body.append(emptyMsg('This project has no items.')); return; }
+  const present = [...new Set(rows.map(e => e.cls))];
+  legendOf(c, present.map(k => ({ label: CLS[k].label, color: CLS[k].color })));
+  const max = Math.max(...rows.map(e => e.count));
+  c.body.append(...rows.map(e => hbarRow(e.label, [{ v: e.count, color: CLS[e.cls].color, label: CLS[e.cls].label }], max, String(e.count))));
+}
+
+function drawWorkload(L) {
+  const c = cards.wl, { M, range } = L;
+  c.body.replaceChildren(); c.legend.replaceChildren();
+  c.sub.textContent = `Done ${range.weeks ? 'in the last ' + range.weeks + ' weeks' : 'over all time'}, plus everything still open`;
+  setTable(c, ['Person', 'Done', 'In progress', 'Waiting'], M.workload.map(e => [e.name, String(e.done), String(e.active), String(e.waiting)]));
+  const list = M.workload.slice(0, 12);
+  if (!list.length) { c.body.append(emptyMsg('No items to show.')); return; }
+  legendOf(c, ['done', 'active', 'waiting'].map(k => ({ label: CLS[k].label, color: CLS[k].color })));
+  const max = Math.max(...list.map(e => e.done + e.active + e.waiting));
+  c.body.append(...list.map(e => hbarRow(e.name, ['done', 'active', 'waiting'].map(k => ({ v: e[k], color: CLS[k].color, label: CLS[k].label })), max, String(e.done + e.active + e.waiting))));
+  if (M.workload.length > 12) c.body.append(h('p', { class: 'csub', text: `Showing 12 of ${M.workload.length} people. The table lists everyone.` }));
+}
+
+function itemLink(r) {
+  const meta = [r.repo, r.number ? '#' + r.number : null].filter(Boolean).join(' ');
+  const t = safeUrl(r.url) ? h('a', { href: r.url, target: '_blank', rel: 'noopener noreferrer', text: r.title }) : h('span', { text: r.title });
+  return h('div', {}, t, meta ? h('div', { class: 'meta', text: meta }) : null);
+}
+function flagEl() {
+  return h('span', { class: 'flag' },
+    sv('svg', { viewBox: '0 0 16 16', width: 14, height: 14, 'aria-hidden': 'true' },
+      sv('path', { d: 'M8 1.5 15 14H1z', fill: 'var(--warn)' }),
+      sv('path', { d: 'M8 6v4M8 11.6v.9', stroke: '#0b0b0b', 'stroke-width': 1.6, 'stroke-linecap': 'round', fill: 'none' })),
+    'Stalled');
+}
+function drawAging(L) {
+  const c = cards.age, { M, m } = L, combined = !!L.combined;
+  c.body.replaceChildren(); c.legend.replaceChildren();
+  c.tdet.hidden = true;
+  c.sub.textContent = m.status ? `${M.wip.length} in progress · stalled after ${Math.round(M.stallDays)} days in one status` : '';
+  if (!m.status) { c.body.append(emptyMsg('Choose a Status field in Field mapping to see items in progress.')); return; }
+  if (!M.wip.length) { c.body.append(emptyMsg('Nothing is marked In progress right now.')); return; }
+  const list = M.wip.slice(0, 10);
+  const cols = combined ? ['Item', 'Project', 'Status', 'Assignee', 'In status', ''] : ['Item', 'Status', 'Assignee', 'In status', ''];
+  const numAt = cols.indexOf('In status');
+  c.body.append(h('div', { class: 'tw' }, h('table', {},
+    h('thead', {}, h('tr', {}, cols.map((x, i) => h('th', { class: i === numAt ? 'num' : null, text: x })))),
+    h('tbody', {}, list.map(({ row, days }) => h('tr', {},
+      h('td', {}, itemLink(row)), combined ? h('td', { text: row.project }) : null, h('td', { text: row.status }), h('td', { text: row.assignees.join(', ') }),
+      h('td', { class: 'num', text: fmtDays(days) }), h('td', {}, days > M.stallDays ? flagEl() : null)))))));
+  if (M.wip.length > 10) c.body.append(h('p', { class: 'csub', text: `Showing the 10 longest of ${M.wip.length}.` }));
+}
+
+function drawByProject(L) {
+  const c = cards.proj, { rows, range, m } = L;
+  c.body.replaceChildren(); c.legend.replaceChildren();
+  c.sub.textContent = `Done ${range.weeks ? 'in the last ' + range.weeks + ' weeks' : 'over all time'}, plus what is still open`;
+  const by = new Map();
+  for (const r of rows) {
+    let e = by.get(r.project);
+    if (!e) { e = { name: r.project, done: 0, active: 0, waiting: 0, leads: [], points: 0 }; by.set(r.project, e); }
+    if (r.cls === 'done') {
+      if (r.doneAt != null && r.doneAt >= range.from && r.doneAt <= range.to) {
+        e.done++; e.points += r.points || 0;
+        if (r.created != null) e.leads.push(Math.max(0, (r.doneAt - r.created) / DAY));
+      }
+    } else e[r.cls]++;
+  }
+  const list = [...by.values()].sort((a, b) => (b.done + b.active + b.waiting) - (a.done + a.active + a.waiting) || a.name.localeCompare(b.name));
+  const head = ['Project', 'Done', 'In progress', 'Waiting', 'Median lead (days)'].concat(m.estimate ? ['Points'] : []);
+  setTable(c, head, list.map(e => {
+    const p50 = percentile(e.leads.sort((a, b) => a - b), 0.5);
+    return [e.name, String(e.done), String(e.active), String(e.waiting), p50 == null ? '—' : String(Math.round(p50 * 10) / 10)].concat(m.estimate ? [fmtNum(e.points)] : []);
+  }));
+  if (!list.length) { c.body.append(emptyMsg('No items in the loaded projects.')); return; }
+  legendOf(c, ['done', 'active', 'waiting'].map(k => ({ label: CLS[k].label, color: CLS[k].color })));
+  const shown = list.slice(0, 12);
+  const max = Math.max(...shown.map(e => e.done + e.active + e.waiting));
+  c.body.append(...shown.map(e => hbarRow(e.name, ['done', 'active', 'waiting'].map(k => ({ v: e[k], color: CLS[k].color, label: CLS[k].label })), max, String(e.done + e.active + e.waiting))));
+  if (list.length > 12) c.body.append(h('p', { class: 'csub', text: `Showing 12 of ${list.length} projects. The table lists all of them.` }));
+}
+
+const MEM_COLS = [
+  { key: 'login', label: 'Member', get: x => x.login, text: true },
+  { key: 'done', label: 'Done', get: x => x.done },
+  { key: 'perWeek', label: 'Per week', get: x => x.perWeek, fmt: v => (Math.round(v * 10) / 10).toFixed(1) },
+  { key: 'p50', label: 'Median lead', get: x => x.p50, fmt: fmtDays },
+  { key: 'p85', label: 'p85 lead', get: x => x.p85, fmt: fmtDays },
+  { key: 'points', label: 'Points', get: x => x.points, fmt: fmtNum, pointsOnly: true },
+  { key: 'active', label: 'In progress', get: x => x.active },
+  { key: 'stalled', label: 'Stalled', get: x => x.stalled },
+  { key: 'waiting', label: 'Waiting', get: x => x.waiting },
+  { key: 'projects', label: 'Projects', get: x => x.projects }
+];
+function drawMembers(L) {
+  const c = cards.mem;
+  c.body.replaceChildren(); c.legend.replaceChildren();
+  c.tdet.hidden = true;
+  const people = L.people || [];
+  c.sub.textContent = `${people.length} people · ${rangeText(L.range)} · select a name to open their metrics`;
+  if (!people.length) { c.body.append(emptyMsg('No members or assignees found.')); return; }
+  const cols = MEM_COLS.filter(x => !x.pointsOnly || L.m.estimate);
+  const sort = state.memSort;
+  const col = cols.find(x => x.key === sort.key) || cols[1];
+  const rows = [...people].sort((a, b) => {
+    const va = col.get(a), vb = col.get(b);
+    if (va == null && vb == null) return a.login.localeCompare(b.login);
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    const d = typeof va === 'string' ? va.localeCompare(vb) : va - vb;
+    return d * sort.dir || a.login.localeCompare(b.login);
+  });
+  const arrow = x => x.key === col.key ? (sort.dir > 0 ? ' ▲' : ' ▼') : '';
+  const table = h('table', {},
+    h('thead', {}, h('tr', {}, cols.map(x => h('th', { class: x.text ? null : 'num', 'aria-sort': x.key === col.key ? (sort.dir > 0 ? 'ascending' : 'descending') : null },
+      h('button', { type: 'button', class: 'sortbtn', text: x.label + arrow(x), onclick: () => { state.memSort = x.key === col.key ? { key: x.key, dir: -sort.dir } : { key: x.key, dir: x.text ? 1 : -1 }; drawMembers(L); } }))))),
+    h('tbody', {}, rows.map(p => h('tr', {}, cols.map(x => {
+      if (x.text) {
+        const who = p.login === 'Unassigned' ? h('span', { text: 'Unassigned' }) : h('button', { type: 'button', class: 'linkbtn', text: p.login, onclick: () => openPeople('person', p.login) });
+        return h('td', {}, who, p.name ? h('span', { class: 'sub2', text: '  ' + p.name }) : null);
+      }
+      const v = x.get(p);
+      return h('td', { class: 'num', text: v == null ? '—' : (x.fmt ? x.fmt(v) : String(v)) });
+    })))));
+  c.body.append(h('div', { class: 'tw tall' }, table));
+}
+
+function drawCharts() {
+  const L = state.last;
+  if (!L) return;
+  const combined = !!L.combined, all = combined && L.view === 'all';
+  const show = (id, on) => { cards[id].root.hidden = !on; };
+  show('vel', !combined); show('snap', !combined); show('wl', !combined || all); show('proj', combined); show('mem', all && isOrg());
+  drawThroughput(L); drawLead(L); drawAging(L);
+  if (!combined) { drawVelocity(L); drawSnapshot(L); drawWorkload(L); }
+  else {
+    drawByProject(L);
+    if (all) { drawWorkload(L); if (isOrg()) drawMembers(L); }
+  }
+}
+
+/* ===== tiles ===== */
+function deltaEl(cur, prev, range) {
+  if (prev == null) return null;
+  const d = cur - prev, label = `vs previous ${range.weeks} weeks`;
+  if (d === 0) return h('div', { class: 'ts', text: 'No change ' + label });
+  return h('div', { class: 'dl ' + (d > 0 ? 'up' : 'down'), text: `${d > 0 ? '▲ +' : '▼ −'}${Math.abs(d)} ${label}` });
+}
+function renderTiles(L) {
+  const { M, m, range, rows } = L, wrap = $('#tiles');
+  const unit = m.estimate ? 'points' : 'items';
+  const T = (label, value, unitText, sub, delta) => h('div', { class: 'tile' },
+    h('div', { class: 'tl', text: label }), h('div', { class: 'tv' }, value, unitText ? h('small', { text: unitText }) : null), delta, sub ? h('div', { class: 'ts', text: sub }) : null);
+  const tiles = [
+    T('Items done', String(M.inRange.length), '', rangeText(range), deltaEl(M.inRange.length, M.prev ? M.prev.length : null, range)),
+    T('Throughput', (Math.round(M.perWeek * 10) / 10).toFixed(1), 'per week', `${M.inRange.length} items over ${Math.round(M.spanWeeks)} weeks`),
+    T('Median lead time', fmtDays(M.p50), '', M.leads.length ? `p85 ${fmtDays(M.p85)} · ${M.leads.length} items` : 'No finished items')
+  ];
+  if (m.iteration && M.velocity != null) tiles.push(T('Velocity', fmtNum(M.velocity), unit + ' per iteration', `${M.finishedCount} finished iterations`));
+  else if (m.estimate) tiles.push(T('Points done', fmtNum(M.pointsDone), 'points', rangeText(range)));
+  const hasActive = m.status && Object.values(m.meaning).includes('active');
+  if (hasActive) tiles.push(T('In progress', String(M.wip.length), 'items', M.stalled ? `${M.stalled} stalled` : 'None stalled'));
+  else tiles.push(T('Open items', String(M.openCount), 'items', `${rows.length} on the board`));
+  if (m.iteration && M.accuracy != null) tiles.push(T('Plan accuracy', Math.round(M.accuracy * 100) + '%', '', 'Completed ÷ committed'));
+  wrap.replaceChildren(...tiles);
+}
+
+function tileEl(label, value, unitText, sub, delta) {
+  return h('div', { class: 'tile' }, h('div', { class: 'tl', text: label }), h('div', { class: 'tv' }, value, unitText ? h('small', { text: unitText }) : null), delta, sub ? h('div', { class: 'ts', text: sub }) : null);
+}
+function renderTilesCombined(L) {
+  const { M, m, range, rows } = L;
+  const open = rows.filter(r => r.cls !== 'done').length;
+  const tiles = [
+    tileEl('Items done', String(M.inRange.length), '', rangeText(range), deltaEl(M.inRange.length, M.prev ? M.prev.length : null, range)),
+    tileEl('Throughput', (Math.round(M.perWeek * 10) / 10).toFixed(1), 'per week', `${M.inRange.length} items over ${Math.round(M.spanWeeks)} weeks`),
+    tileEl('Median lead time', fmtDays(M.p50), '', M.leads.length ? `p85 ${fmtDays(M.p85)} · ${M.leads.length} items` : 'No finished items')
+  ];
+  if (m.estimate) tiles.push(tileEl('Points done', fmtNum(M.pointsDone), 'points', rangeText(range)));
+  tiles.push(tileEl('In progress', String(M.wip.length), 'items', M.stalled ? `${M.stalled} stalled` : 'None stalled'));
+  tiles.push(tileEl('Open items', String(open), 'items', `${new Set(rows.map(r => r.project)).size} projects`));
+  $('#tiles').replaceChildren(...tiles);
+}
+
+/* ===== mapping + rails ===== */
+function renderMapping() {
+  const p = curProject(), m = curMap(), idx = fieldIndex(p), box = $('#mapbox');
+  const pickField = (id, label, opts, val, onch) => h('label', { class: 'f', for: id }, label,
+    h('select', { id, onchange: onch }, h('option', { value: '', text: 'None' }), opts.map(o => h('option', { value: o, text: o, selected: o === val }))));
+  const grid = h('div', { class: 'mapgrid' },
+    pickField('map-status', 'Status field', idx.select, m.status, e => { m.status = e.target.value || null; m.meaning = m.status ? defaultMeaning(p, m.status) : {}; renderMapping(); renderDash(); }),
+    pickField('map-estimate', 'Estimate field', idx.number, m.estimate, e => { m.estimate = e.target.value || null; renderMapping(); renderDash(); }),
+    pickField('map-iter', 'Iteration field', idx.iteration, m.iteration, e => { m.iteration = e.target.value || null; renderMapping(); renderDash(); }));
+  const kids = [grid];
+  if (m.status) {
+    kids.push(h('div', { class: 'lbl', style: 'margin-top:12px', text: 'What each status means' }),
+      h('div', { class: 'meaning' }, statusValues(p, m.status).map((v, i) => h('div', { class: 'mrow' },
+        h('span', { text: v }),
+        h('select', { id: 'mean-' + i, 'aria-label': 'Meaning of ' + v, onchange: e => { m.meaning[v] = e.target.value; renderDash(); } },
+          ['waiting', 'active', 'done'].map(c => h('option', { value: c, text: CLS[c].label, selected: (m.meaning[v] || 'waiting') === c })))))));
+  }
+  box.replaceChildren(...kids);
+  $('#mapsum').textContent = ` · ${[m.status && 'Status: ' + m.status, m.estimate && 'Estimate: ' + m.estimate, m.iteration && 'Iteration: ' + m.iteration].filter(Boolean).join(' · ') || 'nothing mapped'}`;
+}
+function renderRanges() {
+  $('#ranges').replaceChildren(...RANGES.map(r => h('button', { type: 'button', 'aria-pressed': r === state.preset ? 'true' : 'false', text: r.label, onclick: () => { state.preset = r; renderRanges(); renderDash(); } })));
+}
+function renderRail() {
+  const d = state.data, org = isOrg();
+  const list = $('#plist'), q = state.query.trim().toLowerCase().replace(/^#/, '');
+  const idx = sortedIdx().filter(i => { const p = d.projects[i]; return !q || (p.title || '').toLowerCase().includes(q) || String(p.number) === q; });
+  if (!idx.length) list.replaceChildren(h('li', { class: 'empty', text: 'No projects match.' }));
+  else list.replaceChildren(...idx.map(i => {
+    const p = d.projects[i];
+    const n = Array.isArray(p.items) ? p.items.length : p.count;
+    return h('li', {}, h('button', { type: 'button', class: 'proj', 'aria-current': state.view === 'project' && i === state.pi ? 'true' : null, onclick: () => selectProject(i) },
+      h('b', { text: p.title || 'Project ' + p.number }),
+      h('small', { text: `#${p.number ?? '?'} · ${n ?? '?'} items${p.closed ? ' · closed' : ''}` })));
+  }));
+  $('#h-people').textContent = org ? 'People' : 'Account';
+  const all = $('#allBtn');
+  all.replaceChildren(h('b', { text: org ? 'All members' : 'Account summary' }), h('small', { text: org ? 'Summary of every member' : 'Every project in one view' }));
+  if (state.view === 'all') all.setAttribute('aria-current', 'true'); else all.removeAttribute('aria-current');
+  $('#inclClosed').checked = state.includeClosed;
+  $('#membersBox').hidden = !org;
+  if (!org) return;
+  const note = $('#membersNote');
+  note.textContent = d.membersNote || ''; note.hidden = !d.membersNote;
+  const ppl = peopleList(), mq = state.mquery.trim().toLowerCase();
+  $('#msearch').hidden = ppl.length <= 8;
+  const shown = ppl.filter(x => !mq || x.login.toLowerCase().includes(mq) || x.name.toLowerCase().includes(mq));
+  $('#mlist').replaceChildren(...(shown.length ? shown.map(x => h('li', {},
+    h('button', { type: 'button', class: 'proj', 'aria-current': state.view === 'person' && state.person === x.login ? 'true' : null, onclick: () => openPeople('person', x.login) },
+      h('b', { text: x.login }),
+      (x.name || !x.member) ? h('small', { text: [x.name, x.member ? null : 'assignee only'].filter(Boolean).join(' · ') }) : null)))
+    : [h('li', { class: 'empty', text: ppl.length ? 'No members match.' : 'No members yet. Open All members to load them from item assignees.' })]));
+}
+function renderMeta() {
+  const d = state.data;
+  $('#srcmeta').textContent = state.isSample ? 'Sample data' :
+    [d.owner && `${d.owner.login} (${d.owner.type})`, d.projects.length + ' projects', 'loaded ' + new Date(d.loadedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })].filter(Boolean).join(' · ');
+  $('#banner').hidden = !state.isSample;
+}
+function renderHead() {
+  const p = curProject();
+  $('#ptitle').textContent = p.title || 'Project ' + p.number;
+  const extra = [];
+  if (p.closed) extra.push(h('span', { class: 'badge', text: 'Closed' }));
+  if (safeUrl(p.url)) extra.push(' ', h('a', { href: p.url, target: '_blank', rel: 'noopener noreferrer', text: 'Open on GitHub' }));
+  $('#pextra').replaceChildren(...extra);
+}
+function renderHeadCombined(L) {
+  const info = L.view === 'person' ? peopleList().find(x => x.login === L.person) : null;
+  $('#ptitle').textContent = L.view === 'person' ? (info && info.name ? `${L.person} (${info.name})` : L.person) : (isOrg() ? 'All members' : 'Account summary');
+  const extra = [h('span', { class: 'badge', text: `${L.projectsUsed} project${L.projectsUsed === 1 ? '' : 's'}` })];
+  if (L.skipped) extra.push(' ', h('span', { class: 'sub2', text: `${L.skipped} closed skipped` }));
+  if (L.view === 'person' && L.person !== 'Unassigned' && !state.isSample) extra.push(' ', h('a', { href: 'https://github.com/' + encodeURIComponent(L.person), target: '_blank', rel: 'noopener noreferrer', text: 'GitHub profile' }));
+  $('#pextra').replaceChildren(...extra);
+}
+function renderCombined() {
+  const now = Date.now(), d = state.data, used = scopeProjects();
+  if (!used.length) return;
+  const rows = allRows();
+  const scope = state.view === 'person' ? rows.filter(r => r.assignees.includes(state.person)) : rows;
+  const m = { status: 'combined', estimate: scope.some(r => r.points != null) ? 'points' : null, iteration: null, meaning: {} };
+  const range = buildRange(scope, state.preset, now);
+  const stall = stallThreshold(rows, range);
+  const M = computeMetrics(scope, m, range, now, { stallDays: stall });
+  const L = { combined: true, view: state.view, person: state.person, m, rows: scope, range, M, projectsUsed: used.length, skipped: d.projects.filter(p => p.closed && !state.includeClosed).length };
+  if (state.view === 'all' && isOrg()) L.people = summarizePeople(rows, d.members, range, now, stall);
+  state.last = L;
+  $('#mapdet').hidden = true;
+  renderHeadCombined(L);
+  renderTilesCombined(L);
+  drawCharts();
+}
+function renderDash() {
+  if (state.view !== 'project') return renderCombined();
+  if (state.pi < 0) return;
+  $('#mapdet').hidden = false;
+  const p = curProject();
+  if (!Array.isArray(p.items)) return;
+  const m = curMap(), now = Date.now();
+  const rows = prepare(p, m);
+  const range = buildRange(rows, state.preset, now);
+  const M = computeMetrics(rows, m, range, now);
+  state.last = { p, m, rows, range, M };
+  renderTiles(state.last);
+  drawCharts();
+}
+function showPlaceholder(msg, isError) {
+  const ph = $('#placeholder');
+  ph.textContent = msg;
+  ph.className = 'placeholder' + (isError ? ' error' : '');
+  ph.hidden = false;
+  $('#dash').hidden = true;
+}
+function showDash() { $('#placeholder').hidden = true; $('#dash').hidden = false; }
+function renderAll() { renderMeta(); renderRail(); renderRanges(); renderHead(); renderMapping(); renderDash(); }
+
+async function selectProject(i) {
+  const p = state.data.projects[i], mine = ++state.seq;
+  state.pi = i; state.view = 'project';
+  renderRail();
+  if (!Array.isArray(p.items)) {
+    showPlaceholder(`Loading ${p.title}… 0 of ${p.count} items`);
+    try {
+      const res = await fetchProject(ghToken, p, (n, total) => { if (mine === state.seq) showPlaceholder(`Loading ${p.title}… ${n} of ${total} items`); });
+      p.fields = res.fields; p.items = res.items;
+    } catch (err) {
+      if (mine === state.seq) showPlaceholder(err.message || String(err), true);
+      return;
+    }
+    renderRail();
+  }
+  if (mine !== state.seq) return;
+  showDash(); renderHead(); renderMapping(); renderDash();
+}
+
+async function ensureAllLoaded(mine) {
+  const todo = state.data.projects.filter(p => !Array.isArray(p.items) && (state.includeClosed || !p.closed));
+  if (!todo.length) return true;
+  const total = todo.length, queue = [...todo];
+  let finished = 0;
+  showPlaceholder(`Loading ${total} project${total === 1 ? '' : 's'}… 0 of ${total}`);
+  const worker = async () => {
+    while (queue.length) {
+      const p = queue.shift();
+      const res = await fetchProject(ghToken, p, () => {});
+      p.fields = res.fields; p.items = res.items;
+      finished++;
+      if (mine === state.seq) showPlaceholder(`Loading projects… ${finished} of ${total} (${p.title})`);
+    }
+  };
+  try { await Promise.all(Array.from({ length: Math.min(3, queue.length) }, worker)); }
+  catch (err) { if (mine === state.seq) showPlaceholder(err.message || String(err), true); return false; }
+  return mine === state.seq;
+}
+async function openPeople(kind, login) {
+  const mine = ++state.seq;
+  state.view = kind; state.person = login || null;
+  renderRail();
+  if (!state.data.projects.some(p => state.includeClosed || !p.closed)) {
+    showPlaceholder('There are no open projects to summarize. Tick Include closed projects to add the closed ones.');
+    return;
+  }
+  const ok = await ensureAllLoaded(mine);
+  if (!ok || mine !== state.seq) return;
+  renderRail(); showDash(); renderDash();
+}
+
+function fail(text) { const m = $('#loadMsg'); m.textContent = text; m.hidden = false; }
+async function connect() {
+  const token = $('#token').value.trim(), { login, hint } = loginFrom($('#target').value);
+  $('#loadMsg').hidden = true;
+  if (!token) return fail('Enter a GitHub token.');
+  if (!login) return fail('Enter an account or organization name, or its GitHub URL.');
+  const btn = $('#connect');
+  btn.disabled = true; btn.textContent = 'Loading projects…';
+  try {
+    const { kind, nodes } = await listProjects(token, login, hint);
+    if (!nodes.length) throw new GhError(`No projects found under ${kind} "${login}". The token may not be allowed to see them.`);
+    let members = null, membersNote = '';
+    if (kind === 'organization') {
+      btn.textContent = 'Loading members…';
+      try {
+        members = (await listMembers(token, login)).map(x => ({ login: x.login, name: x.name || '' }));
+        if (!members.length) { members = null; membersNote = MEMBERS_NOTE; }
+      } catch (e) { members = null; membersNote = MEMBERS_NOTE; }
+    }
+    ghToken = token;
+    state.data = {
+      owner: { login, type: kind }, loadedAt: Date.now(), members, membersNote,
+      projects: nodes.map(p => ({ id: p.id, number: p.number, title: p.title, url: p.url, closed: p.closed, updatedAt: p.updatedAt, shortDescription: p.shortDescription || '', count: p.items.totalCount, fields: null, items: null }))
+    };
+    state.isSample = false; state.maps = new Map(); state.query = ''; state.mquery = ''; state.last = null;
+    state.pi = -1; state.view = 'project'; state.person = null; state.peopleKey = ''; state.peopleCache = null; state.seq++;
+    $('#psearch').value = ''; $('#msearch').value = '';
+    renderMeta(); renderRail();
+    showPlaceholder(`Found ${nodes.length} project${nodes.length === 1 ? '' : 's'} under ${login}. Choose one on the left, or open ${kind === 'organization' ? 'All members or a member' : 'Account summary'} for the combined view.`);
+  } catch (err) {
+    fail(err.message || String(err));
+  } finally {
+    btn.disabled = false; btn.textContent = 'Load projects';
+  }
+}
+
+function boot() {
+  $('#charts').append(makeCard('tp', 'Items done per week'), makeCard('lead', 'Lead time'), makeCard('vel', 'Committed vs completed'),
+    makeCard('proj', 'By project'), makeCard('snap', 'Board right now'), makeCard('wl', 'Workload by person'),
+    makeCard('mem', 'Members', true), makeCard('age', 'Items in progress, longest first', true));
+  $('#connectForm').addEventListener('submit', e => { e.preventDefault(); connect(); });
+  $('#psearch').addEventListener('input', e => { state.query = e.target.value; renderRail(); });
+  $('#msearch').addEventListener('input', e => { state.mquery = e.target.value; renderRail(); });
+  $('#allBtn').addEventListener('click', () => openPeople('all'));
+  $('#inclClosed').addEventListener('change', e => { state.includeClosed = e.target.checked; if (state.view !== 'project') openPeople(state.view, state.person); else renderRail(); });
+
+  state.data = makeSample(Date.now());
+  state.isSample = true;
+  state.pi = sortedIdx()[0];
+  showDash();
+  renderAll();
+
+  const charts = $('#charts');
+  let lastW = charts.clientWidth;
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(() => { const w = charts.clientWidth; if (Math.abs(w - lastW) > 4) { lastW = w; drawCharts(); } }).observe(charts);
+  }
+}
+if (typeof document !== 'undefined') boot();
+</script>
+</body>
+</html>
