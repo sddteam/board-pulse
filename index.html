@@ -101,6 +101,8 @@ h1 { font-size: 22px; line-height: 1.2; margin: 0; font-weight: 650; letter-spac
 .drop { border: 1.5px dashed var(--axis); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; background: var(--surface); }
 .drop.over { border-color: var(--accent); background: var(--accent-wash); }
 .hint { color: var(--muted); font-size: 12.5px; }
+.remember { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text, inherit); cursor: pointer; }
+.remember input { margin: 0; }
 .err { margin: 0; color: var(--bad-text); font-size: 13px; overflow-wrap: anywhere; }
 .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .btn { display: inline-block; background: var(--btn); color: #fff; border: 0; border-radius: 6px; padding: 7px 12px; font: 600 13px var(--font); cursor: pointer; }
@@ -238,8 +240,9 @@ td .meta { font: 11.5px var(--mono); color: var(--muted); }
           <label class="f" for="target">Account or organization
             <input type="text" id="target" name="target" placeholder="your-org or https://github.com/orgs/your-org" autocomplete="off" spellcheck="false">
           </label>
+          <label class="remember" for="remember"><input type="checkbox" id="remember" name="remember"> Remember on this device</label>
           <button type="submit" class="btn" id="connect">Load projects</button>
-          <p class="hint">The token is sent only to api.github.com, straight from this page, and is not saved. It needs read:project, plus repo access for private issues. If the organization uses SAML single sign-on, authorize the token for it.</p>
+          <p class="hint">The token is sent only to api.github.com, straight from this page. Nothing is saved unless you tick “Remember on this device”: then the token and account are kept in this browser’s local storage (unencrypted) when you click Load projects. Untick it and load again to erase them, and don’t use it on a shared computer. It needs read:project, plus repo access for private issues. If the organization uses SAML single sign-on, authorize the token for it.</p>
           <p class="err" id="loadMsg" role="alert" hidden></p>
         </form>
       </section>
@@ -1363,12 +1366,23 @@ async function openPeople(kind, login) {
   renderRail(); showDash(); renderDash();
 }
 
+const STORE_KEY = 'board-pulse:connection';
+function loadSaved() {
+  try { const v = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; }
+}
+function persistInputs(token, target, remember) {
+  try {
+    if (remember) localStorage.setItem(STORE_KEY, JSON.stringify({ token, target }));
+    else localStorage.removeItem(STORE_KEY);
+  } catch (e) { /* storage unavailable or blocked: carry on without saving */ }
+}
 function fail(text) { const m = $('#loadMsg'); m.textContent = text; m.hidden = false; }
 async function connect() {
   const token = $('#token').value.trim(), { login, hint } = loginFrom($('#target').value);
   $('#loadMsg').hidden = true;
   if (!token) return fail('Enter a GitHub token.');
   if (!login) return fail('Enter an account or organization name, or its GitHub URL.');
+  persistInputs(token, $('#target').value.trim(), $('#remember').checked);
   const btn = $('#connect');
   btn.disabled = true; btn.textContent = 'Loading projects…';
   try {
@@ -1404,6 +1418,12 @@ function boot() {
     makeCard('proj', 'By project'), makeCard('snap', 'Board right now'), makeCard('wl', 'Workload by person'),
     makeCard('mem', 'Members', true), makeCard('age', 'Items in progress, longest first', true));
   $('#connectForm').addEventListener('submit', e => { e.preventDefault(); connect(); });
+  const saved = loadSaved();
+  if (saved) {
+    $('#token').value = typeof saved.token === 'string' ? saved.token : '';
+    $('#target').value = typeof saved.target === 'string' ? saved.target : '';
+    $('#remember').checked = true;
+  }
   $('#psearch').addEventListener('input', e => { state.query = e.target.value; renderRail(); });
   $('#msearch').addEventListener('input', e => { state.mquery = e.target.value; renderRail(); });
   $('#allBtn').addEventListener('click', () => openPeople('all'));
